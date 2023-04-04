@@ -187,6 +187,7 @@ export default Kapsule({
 
     // Entering
     const newSlice = slice.enter().append('g')
+      .attr('data-id', (d) => d.data.id)
       .style('opacity', 0)
       .on('click', (ev, d) => {
         ev.stopPropagation();
