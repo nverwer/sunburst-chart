@@ -52,7 +52,8 @@ export default Kapsule({
     },
     onClick: { triggerUpdate: false },
     onHover: { triggerUpdate: false },
-    transitionDuration: { default: 750, triggerUpdate: false }
+    transitionDuration: { default: 750, triggerUpdate: false },
+    transitionEnd : { default: Promise.resolve(), triggerUpdate: false }
   },
 
   methods: {
@@ -162,6 +163,7 @@ export default Kapsule({
     const strokeColorOf = accessorFn(state.strokeColor);
     const nodeClassNameOf = accessorFn(state.nodeClassName);
     const transition = d3Transition().duration(state.transitionDuration);
+    const allTransitionEnds = [];
 
     const levelYDelta = state.layoutData[0].y1 - state.layoutData[0].y0;
     const maxY = Math.min(1, focusD.y0 + levelYDelta * Math.min(
@@ -170,8 +172,8 @@ export default Kapsule({
     ));
 
     // Apply zoom
-    state.svg.transition(transition)
-      .tween('scale', () => {
+    const zoomTransition = state.svg.transition(transition);
+    zoomTransition.tween('scale', () => {
         const xd = d3Interpolate(state.angleScale.domain(), [focusD.x0, focusD.x1]);
         const yd = d3Interpolate(state.radiusScale.domain(), [focusD.y0, maxY]);
         return t => {
@@ -179,11 +181,14 @@ export default Kapsule({
           state.radiusScale.domain(yd(t));
         };
       });
+    allTransitionEnds.push(zoomTransition.end());
 
     // Exiting
-    const oldSlice = slice.exit().transition(transition).remove();
+    const oldSlice = slice.exit().transition(transition);
+    oldSlice.remove();
     oldSlice.select('path.main-arc').attrTween('d', d => () => state.arc(d));
     oldSlice.select('path.hidden-arc').attrTween('d', d => () => middleArcLine(d));
+    allTransitionEnds.push(oldSlice.end());
 
     // Entering
     const newSlice = slice.enter().append('g')
@@ -247,17 +252,19 @@ export default Kapsule({
         ...(`${nodeClassNameOf(d.data) || ''}`.split(' ').map(str => str.trim()))
       ].filter(s => s).join(' '));
 
-    allSlices.select('path.main-arc').transition(transition)
-      .attrTween('d', d => () => state.arc(d))
+    const allSlicesTransition = allSlices.select('path.main-arc').transition(transition);
+    allSlicesTransition.attrTween('d', d => () => state.arc(d))
       .style('stroke', d => strokeColorOf(d.data, d.parent))
       .style('fill', d => colorOf(d.data, d.parent));
+    allTransitionEnds.push(allSlicesTransition.end());
 
     const computeAngularLabels = state.showLabels && ['angular', 'auto'].includes(state.labelOrientation.toLowerCase());
     const computeRadialLabels = state.showLabels && ['radial', 'auto'].includes(state.labelOrientation.toLowerCase());
 
     if (computeAngularLabels) {
-      allSlices.select('path.hidden-arc').transition(transition)
-        .attrTween('d', d => () => middleArcLine(d));
+      const angularLabelsTransition = allSlices.select('path.hidden-arc').transition(transition);
+      angularLabelsTransition.attrTween('d', d => () => middleArcLine(d));
+      allTransitionEnds.push(angularLabelsTransition.end());
     }
 
     // Ensure propagation of data to labels children
@@ -267,28 +274,32 @@ export default Kapsule({
     allSlices.select('g.radial-label').select('text.text-stroke');
 
     // Show/hide labels
-    allSlices.select('.angular-label')
-      .transition(transition)
-        .styleTween('display', d => () => computeAngularLabels
-          && (state.labelOrientation === 'auto' ? autoPickLabelOrientation(d) === 'angular' : angularTextFits(d))
-          ? null : 'none'
-        );
+    const showHideAngularLabelsTransition = allSlices.select('.angular-label').transition(transition);
+    showHideAngularLabelsTransition.styleTween('display', d => () => computeAngularLabels
+        && (state.labelOrientation === 'auto' ? autoPickLabelOrientation(d) === 'angular' : angularTextFits(d))
+        ? null : 'none'
+      );
+    allTransitionEnds.push(showHideAngularLabelsTransition.end());
 
-    allSlices.select('.radial-label')
-      .transition(transition)
-        .styleTween('display', d => () => computeRadialLabels
-          && (state.labelOrientation === 'auto' ? autoPickLabelOrientation(d) === 'radial' : radialTextFits(d))
-          ? null : 'none'
-        );
+    const showHideRadialLabelsTransition = allSlices.select('.radial-label').transition(transition);
+    showHideRadialLabelsTransition.styleTween('display', d => () => computeRadialLabels
+        && (state.labelOrientation === 'auto' ? autoPickLabelOrientation(d) === 'radial' : radialTextFits(d))
+        ? null : 'none'
+      );
+    allTransitionEnds.push(showHideRadialLabelsTransition.end());
 
     // Set labels
     computeAngularLabels && allSlices.selectAll('text.angular-label').selectAll('textPath')
       .text(d => nameOf(d.data));
 
-    computeRadialLabels && allSlices.selectAll('g.radial-label').selectAll('text')
-      .text(d => nameOf(d.data))
-      .transition(transition)
-        .attrTween('transform', d => () => radialTextTransform(d));
+    const radialTextTransformTransition =
+      computeRadialLabels && allSlices.selectAll('g.radial-label').selectAll('text')
+        .text(d => nameOf(d.data))
+        .transition(transition);
+    radialTextTransformTransition && radialTextTransformTransition.attrTween('transform', d => () => radialTextTransform(d));
+    radialTextTransformTransition && allTransitionEnds.push(radialTextTransformTransition.end());
+
+    state.transitionEnd = Promise.all(allTransitionEnds);
 
     //
 
