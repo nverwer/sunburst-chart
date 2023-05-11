@@ -182,14 +182,14 @@ export default Kapsule({
           state.radiusScale.domain(yd(t));
         };
       });
-    allTransitionEnds.push(zoomTransition.end());
+      zoomTransition && allTransitionEnds.push(zoomTransition.end());
 
     // Exiting
     const oldSlice = slice.exit().transition(transition);
     oldSlice.remove();
     oldSlice.select('path.main-arc').attrTween('d', d => () => state.arc(d));
     oldSlice.select('path.hidden-arc').attrTween('d', d => () => middleArcLine(d));
-    allTransitionEnds.push(oldSlice.end());
+    oldSlice && allTransitionEnds.push(oldSlice.end());
 
     // Entering
     const newSlice = slice.enter().append('g')
@@ -257,7 +257,7 @@ export default Kapsule({
     allSlicesTransition.attrTween('d', d => () => state.arc(d))
       .style('stroke', d => strokeColorOf(d.data, d.parent))
       .style('fill', d => colorOf(d.data, d.parent));
-    allTransitionEnds.push(allSlicesTransition.end());
+      allSlicesTransition && allTransitionEnds.push(allSlicesTransition.end());
 
     const computeAngularLabels = state.showLabels && ['angular', 'auto'].includes(state.labelOrientation.toLowerCase());
     const computeRadialLabels = state.showLabels && ['radial', 'auto'].includes(state.labelOrientation.toLowerCase());
@@ -265,7 +265,7 @@ export default Kapsule({
     if (computeAngularLabels) {
       const angularLabelsTransition = allSlices.select('path.hidden-arc').transition(transition);
       angularLabelsTransition.attrTween('d', d => () => middleArcLine(d));
-      allTransitionEnds.push(angularLabelsTransition.end());
+      angularLabelsTransition && allTransitionEnds.push(angularLabelsTransition.end());
     }
 
     // Ensure propagation of data to labels children
@@ -306,7 +306,7 @@ export default Kapsule({
           const { isRadial, fits } = labelMetaCache.get(d);
           return computeAngularLabels && !isRadial && fits ? null : 'none';
         });
-    allTransitionEnds.push(showHideAngularLabelsTransition.end());
+        showHideAngularLabelsTransition && allTransitionEnds.push(showHideAngularLabelsTransition.end());
 
     const showHideRadialLabelsTransition = allSlices.select('.radial-label')
       .transition(transition)
@@ -314,7 +314,7 @@ export default Kapsule({
           const { isRadial, fits } = labelMetaCache.get(d);
           return computeRadialLabels && isRadial && fits ? null : 'none';
         });
-    allTransitionEnds.push(showHideRadialLabelsTransition.end());
+        showHideRadialLabelsTransition && allTransitionEnds.push(showHideRadialLabelsTransition.end());
 
     // Set labels
     computeAngularLabels && allSlices.selectAll('text.angular-label').selectAll('textPath')
